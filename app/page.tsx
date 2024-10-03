@@ -2,19 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/app/components/ui/tabs"
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Button } from "/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+} from "@/app/components/ui/card"
+import { Button } from "@/app/components/ui/button"
+import { Input } from "@/app/components/ui/input"
+import { Label } from "@/app/components/ui/label"
 import { ArrowRight, Bitcoin, DollarSign, TrendingUp, Youtube, Twitter } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 // Mock data for demonstration purposes
 const mockCryptoData = [
@@ -131,7 +131,7 @@ export default function CryptoHub() {
                 id="crypto-select"
                 placeholder="Enter crypto symbol (e.g., BTC)"
                 value={selectedCrypto}
-                onChange={(e) => setSelectedCrypto(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedCrypto(e.target.value)}
                 className="bg-gray-700 text-white border-gray-600 focus:border-yellow-500"
               />
               <Button className="ml-2 bg-yellow-500 hover:bg-yellow-600 text-gray-900">Add</Button>
@@ -241,7 +241,7 @@ export default function CryptoHub() {
                     placeholder="Enter your email"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                     className="bg-gray-700 text-white border-gray-600 focus:border-yellow-500"
                   />
                 </div>
