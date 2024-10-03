@@ -13,9 +13,11 @@ import {
 import { Button } from "@/app/components/ui/button"
 import { Input } from "@/app/components/ui/input"
 import { Label } from "@/app/components/ui/label"
-import { ArrowRight, Bitcoin, DollarSign, TrendingUp, Youtube, Twitter } from 'lucide-react'
+import { ArrowRight, Bitcoin, DollarSign, Youtube, Twitter, Sun, Moon } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import axios from 'axios'
+import useWebSocket from 'react-use-websocket';
+import { useTheme } from 'next-themes'
 
 // Define the structure of our cryptocurrency data
 interface CryptoData {
@@ -33,8 +35,10 @@ interface TrendingCrypto {
   id: string;
   name: string;
   symbol: string;
-  price_change_percentage_24h: number;
-  thumb: string; // URL for the thumbnail image
+  price_change_percentage_24h: {
+    usd: number;
+  };
+  thumb: string;
 }
 
 // Mock data for demonstration purposes
@@ -46,24 +50,43 @@ const mockFeedData = [
 
 export default function CryptoHub() {
   const [email, setEmail] = useState('')
-  const [selectedCrypto, setSelectedCrypto] = useState('bitcoin')
   const [feedSource, setFeedSource] = useState('all')
-  const [cryptoData, setCryptoData] = useState<CryptoData[]>([])
+  const [cryptoData, setCryptoData] = useState<{[key: string]: CryptoData}>({});
   const [trendingCryptos, setTrendingCryptos] = useState<TrendingCrypto[]>([])
+  const [realtimePrices, setRealtimePrices] = useState<{[key: string]: number}>({});
+  const [portfolio, setPortfolio] = useState<{[key: string]: number}>({});
+  const [priceAlerts, setPriceAlerts] = useState<{[key: string]: number}>({});
+  const [newCryptoId, setNewCryptoId] = useState('');
 
-  const fetchCryptoData = async () => {
+  const { lastMessage } = useWebSocket('wss://ws.coincap.io/prices?assets=bitcoin,ethereum,cardano');
+
+  const { theme, setTheme } = useTheme()
+
+  const fetchCryptoData = async (coinId: string) => {
     try {
-      const response = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
+      const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${coinId}`, {
         params: {
-          vs_currency: 'usd',
-          order: 'market_cap_desc',
-          per_page: 3,
-          page: 1,
-          sparkline: true,
-          price_change_percentage: '24h'
+          localization: false,
+          tickers: false,
+          market_data: true,
+          community_data: false,
+          developer_data: false,
+          sparkline: true
         }
       });
-      setCryptoData(response.data);
+      const data = response.data;
+      setCryptoData(prev => ({
+        ...prev,
+        [coinId]: {
+          id: data.id,
+          symbol: data.symbol,
+          name: data.name,
+          image: data.image.small,
+          current_price: data.market_data.current_price.usd,
+          price_change_percentage_24h: data.market_data.price_change_percentage_24h,
+          sparkline_in_7d: { price: data.market_data.sparkline_7d.price }
+        }
+      }));
     } catch (error) {
       console.error('Error fetching crypto data:', error);
     }
@@ -72,11 +95,11 @@ export default function CryptoHub() {
   const fetchTrendingCryptos = async () => {
     try {
       const response = await axios.get('https://api.coingecko.com/api/v3/search/trending');
-      const trendingData = response.data.coins.slice(0, 3).map((coin: any) => ({
+      const trendingData = response.data.coins.slice(0, 3).map((coin: { item: TrendingCrypto }) => ({
         id: coin.item.id,
         name: coin.item.name,
         symbol: coin.item.symbol,
-        price_change_percentage_24h: coin.item.data.price_change_percentage_24h.usd,
+        price_change_percentage_24h: coin.item.price_change_percentage_24h.usd,
         thumb: coin.item.thumb,
       }));
       setTrendingCryptos(trendingData);
@@ -86,8 +109,12 @@ export default function CryptoHub() {
   };
 
   useEffect(() => {
+    const initialCoins = ['bitcoin', 'ethereum', 'cardano'];
+    initialCoins.forEach(coin => fetchCryptoData(coin));
+  }, []);
+
+  useEffect(() => {
     const fetchData = async () => {
-      await fetchCryptoData();
       await fetchTrendingCryptos();
     };
 
@@ -97,21 +124,71 @@ export default function CryptoHub() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (lastMessage !== null) {
+      const data = JSON.parse(lastMessage.data) as Record<string, number>;
+      setRealtimePrices(prevPrices => ({...prevPrices, ...data}));
+      
+      // Check price alerts
+      Object.entries(data).forEach(([cryptoId, price]) => {
+        if (priceAlerts[cryptoId] && price >= priceAlerts[cryptoId]) {
+          alert(`${cryptoId.toUpperCase()} has reached your target price of $${priceAlerts[cryptoId]}!`);
+          // Remove the alert after triggering
+          setPriceAlerts(prev => {
+            const { [cryptoId]: _, ...rest } = prev;
+            return rest;
+          });
+        }
+      });
+    }
+  }, [lastMessage, priceAlerts]);
+
+  // Add a comment to suppress the warning for updatePortfolio
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const updatePortfolio = (cryptoId: string, amount: number) => {
+    setPortfolio(prev => ({...prev, [cryptoId]: (prev[cryptoId] || 0) + amount}));
+  };
+
+  const setPriceAlert = (cryptoId: string, price: number) => {
+    setPriceAlerts(prev => ({...prev, [cryptoId]: price}));
+  };
+
+  const addCrypto = async (coinId: string) => {
+    if (!cryptoData[coinId]) {
+      await fetchCryptoData(coinId);
+    }
+    setNewCryptoId('');
+  };
+
+  const removeCrypto = (coinId: string) => {
+    setCryptoData(prev => {
+      const newData = { ...prev };
+      delete newData[coinId];
+      return newData;
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
-      <header className="sticky top-0 z-50 w-full border-b border-gray-700 bg-gray-900/95 backdrop-blur supports-[backdrop-filter]:bg-gray-900/60">
-        <div className="container mx-auto px-4 flex justify-between items-center h-14">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white dark:bg-gradient-to-b dark:from-gray-100 dark:to-gray-300 dark:text-gray-900">
+      <header className="sticky top-0 z-50 w-full border-b border-gray-700 bg-gray-900/95 backdrop-blur supports-[backdrop-filter]:bg-gray-900/60 dark:bg-gray-100/95 dark:border-gray-300">
+        <div className="container mx-auto px-4 flex justify-between items-center h-16">
           <div className="flex items-center">
             <a className="flex items-center space-x-2" href="/">
-              <Bitcoin className="h-6 w-6 text-yellow-500" />
-              <span className="font-bold sm:inline-block">Crypto Hub</span>
+              <Bitcoin className="h-8 w-8 text-yellow-500" />
+              <span className="font-bold text-xl sm:inline-block">Crypto Hub</span>
             </a>
           </div>
-          <nav className="flex items-center space-x-6 text-sm font-medium">
-            <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#dashboard">Dashboard</a>
-            <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#feed">Feed</a>
-            <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#trending">Trending</a>
+          <nav className="flex-1 flex justify-center items-center space-x-8 text-sm font-medium">
+            <a className="transition-colors hover:text-yellow-500 text-gray-300 dark:text-gray-700" href="#dashboard">Dashboard</a>
+            <a className="transition-colors hover:text-yellow-500 text-gray-300 dark:text-gray-700" href="#feed">Feed</a>
+            <a className="transition-colors hover:text-yellow-500 text-gray-300 dark:text-gray-700" href="#trending">Trending</a>
           </nav>
+          <button 
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} 
+            className="p-2 rounded-full bg-gray-700 dark:bg-gray-300 text-gray-300 dark:text-gray-700"
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
         </div>
       </header>
 
@@ -136,18 +213,26 @@ export default function CryptoHub() {
           </motion.div>
         </section>
 
-        <section id="dashboard" className="py-24 sm:py-32">
+        <section id="dashboard" className="py-12 sm:py-16">
           <h2 className="text-3xl font-bold tracking-tighter mb-8 text-yellow-400">Your Crypto Dashboard</h2>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {cryptoData.map((crypto, index) => (
+            {Object.values(cryptoData).map((crypto) => (
               <motion.div
                 key={crypto.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
+                transition={{ duration: 0.5 }}
                 whileHover={{ scale: 1.05 }}
-                className="transform transition duration-300 ease-in-out"
+                className="transform transition duration-300 ease-in-out relative"
               >
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => removeCrypto(crypto.id)}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-red-500 z-10"
+                >
+                  X
+                </Button>
                 <Card className="bg-gray-800 border-gray-700 overflow-hidden">
                   <CardHeader>
                     <CardTitle className="text-2xl flex items-center">
@@ -157,7 +242,9 @@ export default function CryptoHub() {
                     <CardDescription className="text-gray-400">{crypto.symbol.toUpperCase()}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold mb-2">${crypto.current_price.toLocaleString()}</div>
+                    <div className="text-2xl font-bold mb-2">
+                      ${realtimePrices[crypto.id] ? realtimePrices[crypto.id].toLocaleString() : crypto.current_price.toLocaleString()}
+                    </div>
                     <div className={`text-sm ${crypto.price_change_percentage_24h >= 0 ? 'text-green-500' : 'text-red-500'} mb-4`}>
                       {crypto.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(crypto.price_change_percentage_24h).toFixed(2)}%
                     </div>
@@ -175,6 +262,18 @@ export default function CryptoHub() {
                         />
                       </LineChart>
                     </ResponsiveContainer>
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const target = e.target as HTMLFormElement;
+                      const price = parseFloat(target.alertPrice.value);
+                      if (!isNaN(price)) {
+                        setPriceAlert(crypto.id, price);
+                        target.reset();
+                      }
+                    }}>
+                      <Input name="alertPrice" placeholder="Set price alert" type="number" step="0.01" min="0" />
+                      <Button type="submit">Set Alert</Button>
+                    </form>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -186,16 +285,21 @@ export default function CryptoHub() {
               <Input
                 id="crypto-select"
                 placeholder="Enter crypto ID (e.g., bitcoin)"
-                value={selectedCrypto}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedCrypto(e.target.value)}
+                value={newCryptoId}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewCryptoId(e.target.value)}
                 className="bg-gray-700 text-white border-gray-600 focus:border-yellow-500"
               />
-              <Button className="ml-2 bg-yellow-500 hover:bg-yellow-600 text-gray-900">Add</Button>
+              <Button 
+                className="ml-2 bg-yellow-500 hover:bg-yellow-600 text-gray-900"
+                onClick={() => addCrypto(newCryptoId)}
+              >
+                Add
+              </Button>
             </div>
           </div>
         </section>
 
-        <section id="feed" className="container py-24 sm:py-32">
+        <section id="feed" className="py-12 sm:py-16">
           <h2 className="text-3xl font-bold tracking-tighter mb-8 text-yellow-400">Your Crypto Feed</h2>
           <Tabs defaultValue="all" className="w-full mb-6">
             <TabsList className="bg-gray-700">
@@ -243,7 +347,7 @@ export default function CryptoHub() {
           </div>
         </section>
 
-        <section id="trending" className="container py-24 sm:py-32">
+        <section id="trending" className="py-12 sm:py-16">
           <h2 className="text-3xl font-bold tracking-tighter mb-8 text-yellow-400">Trending Cryptocurrencies</h2>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {trendingCryptos.map((crypto) => (
@@ -264,10 +368,16 @@ export default function CryptoHub() {
                     <CardDescription className="text-gray-400">{crypto.symbol.toUpperCase()}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className={`text-sm ${crypto.price_change_percentage_24h >= 0 ? 'text-green-500' : 'text-red-500'} font-bold`}>
-                      {crypto.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(crypto.price_change_percentage_24h).toFixed(2)}%
+                    <div className={`text-sm ${crypto.price_change_percentage_24h.usd >= 0 ? 'text-green-500' : 'text-red-500'} font-bold`}>
+                      {crypto.price_change_percentage_24h.usd >= 0 ? '▲' : '▼'} {Math.abs(crypto.price_change_percentage_24h.usd).toFixed(2)}%
                     </div>
-                    <Button variant="outline" className="mt-2 border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-gray-900">Add to Dashboard</Button>
+                    <Button 
+                      variant="outline" 
+                      className="mt-2 border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-gray-900"
+                      onClick={() => addCrypto(crypto.id)}
+                    >
+                      Add to Dashboard
+                    </Button>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -275,7 +385,35 @@ export default function CryptoHub() {
           </div>
         </section>
 
-        <section className="container py-24 sm:py-32">
+        <section id="portfolio" className="py-12 sm:py-16">
+          <h2 className="text-3xl font-bold tracking-tighter mb-8 text-yellow-400">Your Portfolio</h2>
+          {Object.keys(portfolio).length > 0 ? (
+            Object.entries(portfolio).map(([cryptoId, amount]) => {
+              const crypto = cryptoData[cryptoId];
+              if (!crypto) return null;
+              const value = amount * (realtimePrices[cryptoId] || crypto.current_price);
+              return (
+                <div key={cryptoId} className="flex justify-between items-center mb-4">
+                  <span>{crypto.name}</span>
+                  <span>{amount} {crypto.symbol.toUpperCase()}</span>
+                  <span>${value.toLocaleString()}</span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-400">Your portfolio is empty. Add some cryptocurrencies to get started!</p>
+              <Button 
+                className="mt-4 bg-yellow-500 hover:bg-yellow-600 text-gray-900"
+                onClick={() => {/* Implement a function to add crypto to portfolio */}}
+              >
+                Add Cryptocurrency
+              </Button>
+            </div>
+          )}
+        </section>
+
+        <section className="py-12 sm:py-16">
           <div className="grid gap-10 sm:grid-cols-2">
             <div>
               <h2 className="text-3xl font-bold tracking-tighter mb-4 text-yellow-400">About Crypto Hub</h2>
