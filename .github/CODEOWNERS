@@ -1,0 +1,10 @@
+# This CODEOWNERS file defines code owners for the project
+# Each line is a file pattern followed by one or more owners
+
+# Default owner for everything in the repo
+*       @amanz81
+
+# Specific ownership can be defined for different files or directories
+# Examples:
+# /src/    @amanz81
+# *.js     @amanz81
