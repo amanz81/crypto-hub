@@ -15,36 +15,87 @@ import { Input } from "@/app/components/ui/input"
 import { Label } from "@/app/components/ui/label"
 import { ArrowRight, Bitcoin, DollarSign, TrendingUp, Youtube, Twitter } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import axios from 'axios'
+
+// Define the structure of our cryptocurrency data
+interface CryptoData {
+  id: string;
+  symbol: string;
+  name: string;
+  image: string;
+  current_price: number;
+  price_change_percentage_24h: number;
+  sparkline_in_7d: { price: number[] };
+}
+
+// Define the structure for trending crypto data
+interface TrendingCrypto {
+  id: string;
+  name: string;
+  symbol: string;
+  price_change_percentage_24h: number;
+  thumb: string; // URL for the thumbnail image
+}
 
 // Mock data for demonstration purposes
-const mockCryptoData = [
-  { name: 'Bitcoin', symbol: 'BTC', price: 50000, change: 2.5, color: 'text-orange-500', chartData: Array.from({length: 7}, (_, i) => ({day: i + 1, price: Math.random() * 10000 + 45000})) },
-  { name: 'Ethereum', symbol: 'ETH', price: 3000, change: -1.2, color: 'text-purple-500', chartData: Array.from({length: 7}, (_, i) => ({day: i + 1, price: Math.random() * 500 + 2750})) },
-  { name: 'Cardano', symbol: 'ADA', price: 2, change: 5.7, color: 'text-blue-500', chartData: Array.from({length: 7}, (_, i) => ({day: i + 1, price: Math.random() * 0.5 + 1.75})) },
-]
-
 const mockFeedData = [
   { type: 'youtube', title: 'Bitcoin Price Prediction 2024', channel: 'Crypto Daily', url: '#' },
   { type: 'twitter', content: 'Ethereum 2.0 launch date confirmed!', author: '@ethereumproject', url: '#' },
   { type: 'news', title: 'Cardano Smart Contracts Go Live', source: 'CoinDesk', url: '#' },
 ]
 
-const mockTrendingData = [
-  { name: 'Solana', symbol: 'SOL', change: 15.3, color: 'text-green-500' },
-  { name: 'Polkadot', symbol: 'DOT', change: 8.7, color: 'text-pink-500' },
-  { name: 'Avalanche', symbol: 'AVAX', change: 12.1, color: 'text-red-500' },
-]
-
 export default function CryptoHub() {
   const [email, setEmail] = useState('')
-  const [selectedCrypto, setSelectedCrypto] = useState('BTC')
+  const [selectedCrypto, setSelectedCrypto] = useState('bitcoin')
   const [feedSource, setFeedSource] = useState('all')
+  const [cryptoData, setCryptoData] = useState<CryptoData[]>([])
+  const [trendingCryptos, setTrendingCryptos] = useState<TrendingCrypto[]>([])
 
-  // Simulating data fetching
+  const fetchCryptoData = async () => {
+    try {
+      const response = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
+        params: {
+          vs_currency: 'usd',
+          order: 'market_cap_desc',
+          per_page: 3,
+          page: 1,
+          sparkline: true,
+          price_change_percentage: '24h'
+        }
+      });
+      setCryptoData(response.data);
+    } catch (error) {
+      console.error('Error fetching crypto data:', error);
+    }
+  };
+
+  const fetchTrendingCryptos = async () => {
+    try {
+      const response = await axios.get('https://api.coingecko.com/api/v3/search/trending');
+      const trendingData = response.data.coins.slice(0, 3).map((coin: any) => ({
+        id: coin.item.id,
+        name: coin.item.name,
+        symbol: coin.item.symbol,
+        price_change_percentage_24h: coin.item.data.price_change_percentage_24h.usd,
+        thumb: coin.item.thumb,
+      }));
+      setTrendingCryptos(trendingData);
+    } catch (error) {
+      console.error('Error fetching trending crypto data:', error);
+    }
+  };
+
   useEffect(() => {
-    // In a real application, you would fetch data from an API here
-    console.log('Fetching data for', selectedCrypto)
-  }, [selectedCrypto])
+    const fetchData = async () => {
+      await fetchCryptoData();
+      await fetchTrendingCryptos();
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 60000); // Refresh every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
@@ -85,12 +136,12 @@ export default function CryptoHub() {
           </motion.div>
         </section>
 
-        <section id="dashboard" className="container py-24 sm:py-32">
+        <section id="dashboard" className="py-24 sm:py-32">
           <h2 className="text-3xl font-bold tracking-tighter mb-8 text-yellow-400">Your Crypto Dashboard</h2>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {mockCryptoData.map((crypto, index) => (
+            {cryptoData.map((crypto, index) => (
               <motion.div
-                key={crypto.symbol}
+                key={crypto.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
@@ -99,23 +150,28 @@ export default function CryptoHub() {
               >
                 <Card className="bg-gray-800 border-gray-700 overflow-hidden">
                   <CardHeader>
-                    <CardTitle className={`text-2xl ${crypto.color}`}>{crypto.name}</CardTitle>
-                    <CardDescription className="text-gray-400">{crypto.symbol}</CardDescription>
+                    <CardTitle className="text-2xl flex items-center">
+                      <img src={crypto.image} alt={crypto.name} className="w-6 h-6 mr-2" />
+                      {crypto.name}
+                    </CardTitle>
+                    <CardDescription className="text-gray-400">{crypto.symbol.toUpperCase()}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold mb-2">${crypto.price.toLocaleString()}</div>
-                    <div className={`text-sm ${crypto.change >= 0 ? 'text-green-500' : 'text-red-500'} mb-4`}>
-                      {crypto.change >= 0 ? '▲' : '▼'} {Math.abs(crypto.change)}%
+                    <div className="text-2xl font-bold mb-2">${crypto.current_price.toLocaleString()}</div>
+                    <div className={`text-sm ${crypto.price_change_percentage_24h >= 0 ? 'text-green-500' : 'text-red-500'} mb-4`}>
+                      {crypto.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(crypto.price_change_percentage_24h).toFixed(2)}%
                     </div>
                     <ResponsiveContainer width="100%" height={100}>
-                      <LineChart data={crypto.chartData}>
-                        <Line type="monotone" dataKey="price" stroke={crypto.color.split('-')[1]} strokeWidth={2} dot={false} />
+                      <LineChart data={crypto.sparkline_in_7d.price.map((price, i) => ({ day: i + 1, price }))}>
+                        <Line type="monotone" dataKey="price" stroke={crypto.price_change_percentage_24h >= 0 ? '#10B981' : '#EF4444'} strokeWidth={2} dot={false} />
                         <XAxis dataKey="day" hide />
                         <YAxis hide />
                         <Tooltip 
                           contentStyle={{ backgroundColor: '#1F2937', border: 'none' }}
                           labelStyle={{ color: '#9CA3AF' }}
                           itemStyle={{ color: '#fff' }}
+                          formatter={(value: number) => [`$${value.toFixed(2)}`, 'Price']}
+                          labelFormatter={(label: number) => `Day ${label}`}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -129,7 +185,7 @@ export default function CryptoHub() {
             <div className="flex mt-2">
               <Input
                 id="crypto-select"
-                placeholder="Enter crypto symbol (e.g., BTC)"
+                placeholder="Enter crypto ID (e.g., bitcoin)"
                 value={selectedCrypto}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedCrypto(e.target.value)}
                 className="bg-gray-700 text-white border-gray-600 focus:border-yellow-500"
@@ -190,25 +246,27 @@ export default function CryptoHub() {
         <section id="trending" className="container py-24 sm:py-32">
           <h2 className="text-3xl font-bold tracking-tighter mb-8 text-yellow-400">Trending Cryptocurrencies</h2>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {mockTrendingData.map((crypto, index) => (
+            {trendingCryptos.map((crypto) => (
               <motion.div
-                key={crypto.symbol}
+                key={crypto.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
+                transition={{ duration: 0.5 }}
                 whileHover={{ scale: 1.05 }}
                 className="transform transition duration-300 ease-in-out"
               >
                 <Card className="bg-gray-800 border-gray-700">
                   <CardHeader>
-                    <CardTitle className={`flex items-center ${crypto.color}`}>
-                      <TrendingUp className="mr-2 h-4 w-4" />
+                    <CardTitle className="flex items-center">
+                      <img src={crypto.thumb} alt={crypto.name} className="w-6 h-6 mr-2" />
                       {crypto.name}
                     </CardTitle>
-                    <CardDescription className="text-gray-400">{crypto.symbol}</CardDescription>
+                    <CardDescription className="text-gray-400">{crypto.symbol.toUpperCase()}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-green-500 font-bold">▲ {crypto.change}%</div>
+                    <div className={`text-sm ${crypto.price_change_percentage_24h >= 0 ? 'text-green-500' : 'text-red-500'} font-bold`}>
+                      {crypto.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(crypto.price_change_percentage_24h).toFixed(2)}%
+                    </div>
                     <Button variant="outline" className="mt-2 border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-gray-900">Add to Dashboard</Button>
                   </CardContent>
                 </Card>
