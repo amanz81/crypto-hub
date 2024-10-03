@@ -49,23 +49,23 @@ export default function CryptoHub() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
       <header className="sticky top-0 z-50 w-full border-b border-gray-700 bg-gray-900/95 backdrop-blur supports-[backdrop-filter]:bg-gray-900/60">
-        <div className="container flex h-14 items-center">
-          <div className="mr-4 hidden md:flex">
-            <a className="mr-6 flex items-center space-x-2" href="/">
+        <div className="container mx-auto px-4 flex justify-between items-center h-14">
+          <div className="flex items-center">
+            <a className="flex items-center space-x-2" href="/">
               <Bitcoin className="h-6 w-6 text-yellow-500" />
-              <span className="hidden font-bold sm:inline-block">Crypto Hub</span>
+              <span className="font-bold sm:inline-block">Crypto Hub</span>
             </a>
-            <nav className="flex items-center space-x-6 text-sm font-medium">
-              <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#dashboard">Dashboard</a>
-              <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#feed">Feed</a>
-              <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#trending">Trending</a>
-            </nav>
           </div>
+          <nav className="flex items-center space-x-6 text-sm font-medium">
+            <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#dashboard">Dashboard</a>
+            <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#feed">Feed</a>
+            <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#trending">Trending</a>
+          </nav>
         </div>
       </header>
 
-      <main>
-        <section className="container py-24 sm:py-32">
+      <main className="container mx-auto px-4">
+        <section className="py-24 sm:py-32">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
