@@ -63,6 +63,16 @@ const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
   return defaultValue;
 };
 
+const formatPrice = (price: number): string => {
+  if (price < 0.000001) {
+    return price.toFixed(10);
+  } else if (price < 0.01) {
+    return price.toFixed(6);
+  } else {
+    return price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+};
+
 export default function CryptoHub() {
   const [mounted, setMounted] = useState(false)
   const [email, setEmail] = useState('')
@@ -93,6 +103,7 @@ export default function CryptoHub() {
         }
       });
       const data = response.data;
+      console.log(`Fetched data for ${coinId}:`, data);
       setCryptoData(prev => {
         const updated = {
           ...prev,
@@ -110,7 +121,7 @@ export default function CryptoHub() {
         return updated;
       });
     } catch (error) {
-      console.error('Error fetching crypto data:', error);
+      console.error(`Error fetching crypto data for ${coinId}:`, error);
     }
   };
 
@@ -134,7 +145,7 @@ export default function CryptoHub() {
     setMounted(true)
     const storedCryptoData = loadFromLocalStorage('cryptoData', {});
     if (Object.keys(storedCryptoData).length === 0) {
-      const initialCoins = ['bitcoin', 'ethereum', 'cardano'];
+      const initialCoins = ['bitcoin', 'ethereum', 'solana'];
       initialCoins.forEach(coin => fetchCryptoData(coin));
     } else {
       setCryptoData(storedCryptoData);
@@ -267,7 +278,7 @@ export default function CryptoHub() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold mb-2">
-                      ${realtimePrices[crypto.id] ? realtimePrices[crypto.id].toLocaleString() : crypto.current_price.toLocaleString()}
+                      ${formatPrice(realtimePrices[crypto.id] || crypto.current_price)}
                     </div>
                     <div className={`text-sm ${crypto.price_change_percentage_24h >= 0 ? 'text-green-500' : 'text-red-500'} mb-4`}>
                       {crypto.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(crypto.price_change_percentage_24h).toFixed(2)}%
@@ -430,7 +441,7 @@ export default function CryptoHub() {
                 <div key={cryptoId} className="flex justify-between items-center mb-4">
                   <span>{crypto.name}</span>
                   <span>{amount} {crypto.symbol.toUpperCase()}</span>
-                  <span>${value.toLocaleString()}</span>
+                  <span>${formatPrice(value)}</span>
                 </div>
               );
             })
