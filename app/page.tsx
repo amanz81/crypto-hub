@@ -48,10 +48,28 @@ const mockFeedData = [
   { type: 'news', title: 'Cardano Smart Contracts Go Live', source: 'CoinDesk', url: '#' },
 ]
 
+// Helper functions for localStorage
+const saveToLocalStorage = (key: string, value: unknown): void => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+};
+
+const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : defaultValue;
+  }
+  return defaultValue;
+};
+
 export default function CryptoHub() {
+  const [mounted, setMounted] = useState(false)
   const [email, setEmail] = useState('')
   const [feedSource, setFeedSource] = useState('all')
-  const [cryptoData, setCryptoData] = useState<{[key: string]: CryptoData}>({});
+  const [cryptoData, setCryptoData] = useState<{[key: string]: CryptoData}>(() => 
+    loadFromLocalStorage('cryptoData', {})
+  );
   const [trendingCryptos, setTrendingCryptos] = useState<TrendingCrypto[]>([])
   const [realtimePrices, setRealtimePrices] = useState<{[key: string]: number}>({});
   const [portfolio, setPortfolio] = useState<{[key: string]: number}>({});
@@ -75,18 +93,22 @@ export default function CryptoHub() {
         }
       });
       const data = response.data;
-      setCryptoData(prev => ({
-        ...prev,
-        [coinId]: {
-          id: data.id,
-          symbol: data.symbol,
-          name: data.name,
-          image: data.image.small,
-          current_price: data.market_data.current_price.usd,
-          price_change_percentage_24h: data.market_data.price_change_percentage_24h,
-          sparkline_in_7d: { price: data.market_data.sparkline_7d.price }
-        }
-      }));
+      setCryptoData(prev => {
+        const updated = {
+          ...prev,
+          [coinId]: {
+            id: data.id,
+            symbol: data.symbol,
+            name: data.name,
+            image: data.image.small,
+            current_price: data.market_data.current_price.usd,
+            price_change_percentage_24h: data.market_data.price_change_percentage_24h,
+            sparkline_in_7d: { price: data.market_data.sparkline_7d.price }
+          }
+        };
+        saveToLocalStorage('cryptoData', updated);
+        return updated;
+      });
     } catch (error) {
       console.error('Error fetching crypto data:', error);
     }
@@ -109,19 +131,15 @@ export default function CryptoHub() {
   };
 
   useEffect(() => {
-    const initialCoins = ['bitcoin', 'ethereum', 'cardano'];
-    initialCoins.forEach(coin => fetchCryptoData(coin));
-  }, []);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      await fetchTrendingCryptos();
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 60000); // Refresh every minute
-
-    return () => clearInterval(interval);
+    setMounted(true)
+    const storedCryptoData = loadFromLocalStorage('cryptoData', {});
+    if (Object.keys(storedCryptoData).length === 0) {
+      const initialCoins = ['bitcoin', 'ethereum', 'cardano'];
+      initialCoins.forEach(coin => fetchCryptoData(coin));
+    } else {
+      setCryptoData(storedCryptoData);
+    }
+    fetchTrendingCryptos();
   }, []);
 
   useEffect(() => {
@@ -165,9 +183,14 @@ export default function CryptoHub() {
     setCryptoData(prev => {
       const newData = { ...prev };
       delete newData[coinId];
+      saveToLocalStorage('cryptoData', newData);
       return newData;
     });
   };
+
+  if (!mounted) {
+    return null // or a loading spinner
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
