@@ -135,6 +135,7 @@ export default function CryptoHub() {
           alert(`${cryptoId.toUpperCase()} has reached your target price of $${priceAlerts[cryptoId]}!`);
           // Remove the alert after triggering
           setPriceAlerts(prev => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { [cryptoId]: _, ...rest } = prev;
             return rest;
           });
@@ -169,8 +170,8 @@ export default function CryptoHub() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white dark:bg-gradient-to-b dark:from-gray-100 dark:to-gray-300 dark:text-gray-900">
-      <header className="sticky top-0 z-50 w-full border-b border-gray-700 bg-gray-900/95 backdrop-blur supports-[backdrop-filter]:bg-gray-900/60 dark:bg-gray-100/95 dark:border-gray-300">
+    <div className="min-h-screen bg-gray-900 text-white">
+      <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg-gray-800">
         <div className="container mx-auto px-4 flex justify-between items-center h-16">
           <div className="flex items-center">
             <a className="flex items-center space-x-2" href="/">
@@ -179,13 +180,13 @@ export default function CryptoHub() {
             </a>
           </div>
           <nav className="flex-1 flex justify-center items-center space-x-8 text-sm font-medium">
-            <a className="transition-colors hover:text-yellow-500 text-gray-300 dark:text-gray-700" href="#dashboard">Dashboard</a>
-            <a className="transition-colors hover:text-yellow-500 text-gray-300 dark:text-gray-700" href="#feed">Feed</a>
-            <a className="transition-colors hover:text-yellow-500 text-gray-300 dark:text-gray-700" href="#trending">Trending</a>
+            <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#dashboard">Dashboard</a>
+            <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#feed">Feed</a>
+            <a className="transition-colors hover:text-yellow-500 text-gray-300" href="#trending">Trending</a>
           </nav>
           <button 
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} 
-            className="p-2 rounded-full bg-gray-700 dark:bg-gray-300 text-gray-300 dark:text-gray-700"
+            className="p-2 rounded-full bg-gray-700 text-gray-300"
           >
             {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
@@ -249,15 +250,25 @@ export default function CryptoHub() {
                       {crypto.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(crypto.price_change_percentage_24h).toFixed(2)}%
                     </div>
                     <ResponsiveContainer width="100%" height={100}>
-                      <LineChart data={crypto.sparkline_in_7d.price.map((price, i) => ({ day: i + 1, price }))}>
-                        <Line type="monotone" dataKey="price" stroke={crypto.price_change_percentage_24h >= 0 ? '#10B981' : '#EF4444'} strokeWidth={2} dot={false} />
+                      <LineChart data={crypto.sparkline_in_7d.price.map((price, i, arr) => ({ 
+                        day: i + 1, 
+                        price,
+                        change: i > 0 ? ((price - arr[i-1]) / arr[i-1]) * 100 : 0
+                      }))}>
+                        <Line 
+                          type="monotone" 
+                          dataKey="change" 
+                          stroke={crypto.price_change_percentage_24h >= 0 ? '#10B981' : '#EF4444'} 
+                          strokeWidth={2} 
+                          dot={false} 
+                        />
                         <XAxis dataKey="day" hide />
                         <YAxis hide />
                         <Tooltip 
                           contentStyle={{ backgroundColor: '#1F2937', border: 'none' }}
                           labelStyle={{ color: '#9CA3AF' }}
                           itemStyle={{ color: '#fff' }}
-                          formatter={(value: number) => [`$${value.toFixed(2)}`, 'Price']}
+                          formatter={(value: number) => [`${value.toFixed(2)}%`, 'Daily Change']}
                           labelFormatter={(label: number) => `Day ${label}`}
                         />
                       </LineChart>
@@ -450,7 +461,7 @@ export default function CryptoHub() {
         </section>
       </main>
 
-      <footer className="border-t border-gray-700">
+      <footer className="border-t border-gray-800">
         <div className="container flex flex-col gap-4 py-10 md:flex-row md:gap-8">
           <p className="text-center text-sm leading-loose text-gray-400 md:text-left">
             © 2024 Crypto Hub. All rights reserved.
