@@ -25,3 +25,9 @@ body {
     text-wrap: balance;
   }
 }
+
+@layer base {
+  body {
+    @apply transition-colors duration-200;
+  }
+}
